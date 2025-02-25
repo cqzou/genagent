@@ -4,8 +4,11 @@
 # version 2025.02.24
 
 # TODO:
-# - support claude 3.7 reasoning
-
+# [] clean up memory and chatting
+# [] support claude 3.7 reasoning
+# [] fix linting fhdsklfa;djslgahdsl
+# [] cleaner model toggle with settings per project
+# [] fix module making - more intuitive in/out
 
 import json
 import os
@@ -17,14 +20,6 @@ import numpy as np
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from openai import OpenAI
-
-# my linter is mad at me for not using the right message classes so this is my scuffed
-# solution -- don't worry about it
-from openai.types.chat import (
-  ChatCompletionAssistantMessageParam,
-  ChatCompletionSystemMessageParam,
-  ChatCompletionUserMessageParam
-)
 
 #------------------------------------------------------------------------------
 # INITIALIZATION AND CONFIGURATION
@@ -73,20 +68,10 @@ def gen(messages: str | list[dict], provider=DEFAULT_PROVIDER, model=DEFAULT_MOD
 
   try:
     if provider == 'oai':
-      typed_messages = []
-      for msg in messages:
-        match msg["role"]:
-          case "system":
-            typed_messages.append(ChatCompletionSystemMessageParam(role="system", content=msg["content"]))
-          case "user":
-            typed_messages.append(ChatCompletionUserMessageParam(role="user", content=msg["content"]))
-          case "assistant":
-            typed_messages.append(ChatCompletionAssistantMessageParam(role="assistant", content=msg["content"]))
-      
       response = oai.chat.completions.create(
         model=model,
         temperature=temperature,
-        messages=typed_messages
+        messages=messages # type: ignore
       )
       return response.choices[0].message.content or ""
 
