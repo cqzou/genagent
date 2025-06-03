@@ -5,12 +5,24 @@ A Python package providing utilities for generative agent tasks, including:
 - Helper functions for prompt engineering and structured output.
 - Basic agent memory and chat session management.
 
-Version: 0.1.0 (See `genagent/__init__.py` for the current version)
+Version: 0.2.0 (See `genagent/__init__.py` for the current version)
 
 ## Installation
 
 ```bash
 pip install genagent
+```
+
+## Configuration
+
+GenAgent now supports environment variable configuration for default provider and model:
+
+```bash
+# In your .env file or environment
+DEFAULT_PROVIDER=ant  # or 'oai' for OpenAI
+DEFAULT_MODEL=claude-3-7-sonnet-latest  # or any model you prefer
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
 ```
 
 ## Usage
@@ -65,12 +77,10 @@ instruction_modules = [
 ]
 
 print("\nAttempting structured output with mod_gen...")
-# You might need to specify a model that is good at following formatting instructions (e.g., JSON output if prompted for it)
-# and ensure your LLM provider and model are correctly configured (e.g., API keys).
+# mod_gen now uses environment defaults if not specified
 structured_output = mod_gen(
-    modules=instruction_modules,
-    provider='oai',  # or 'ant', ensure API keys are set in your environment
-    model='gpt-3.5-turbo' # Example model, choose one appropriate for your provider and task
+    modules=instruction_modules
+    # provider and model will use environment defaults
 )
 
 if structured_output:
@@ -79,6 +89,13 @@ if structured_output:
         print(f"- {key.capitalize()}: {value}")
 else:
     print("\nMod_gen did not return structured output. Check for errors or try debugging.")
+
+## What's New in 0.2.0
+
+- **Modular architecture**: Agent utilities moved to separate `agent_utils` module
+- **Environment configuration**: Default provider and model can be set via environment variables
+- **Improved defaults**: `mod_gen` now uses configured defaults instead of hardcoded values
+- **Better code organization**: Cleaner separation of concerns between LLM utilities and agent functionality
 
 ## Development
 

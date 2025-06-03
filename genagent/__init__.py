@@ -7,7 +7,10 @@ from .llm_utils import (
     parse_json,
     mod_gen,
     get_embedding,
-    get_image,
+    get_image
+)
+
+from .agent_utils import (
     MemoryNode,
     Agent,
     create_simple_agent,
@@ -15,4 +18,4 @@ from .llm_utils import (
     create_simple_chat
 )
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
