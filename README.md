@@ -90,6 +90,8 @@ if structured_output:
 else:
     print("\nMod_gen did not return structured output. Check for errors or try debugging.")
 
+```
+
 ## What's New in 0.2.1
 
 - **Parallelization**: Added experiment utils `run_parallel_dict_map` and `run_parallel_dict_product` from [e chi](https://github.com/ethanachi)
