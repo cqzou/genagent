@@ -5,7 +5,7 @@ A Python package providing utilities for generative agent tasks, including:
 - Helper functions for prompt engineering and structured output.
 - Basic agent memory and chat session management.
 
-Version: 0.2.0 (See `genagent/__init__.py` for the current version)
+Version: 0.2.1 (See `genagent/__init__.py` for the current version)
 
 ## Installation
 
@@ -89,6 +89,10 @@ if structured_output:
         print(f"- {key.capitalize()}: {value}")
 else:
     print("\nMod_gen did not return structured output. Check for errors or try debugging.")
+
+## What's New in 0.2.1
+
+- **Parallelization**: Added experiment utils `run_parallel_dict_map` and `run_parallel_dict_product` from [e chi](https://github.com/ethanachi)
 
 ## What's New in 0.2.0
 

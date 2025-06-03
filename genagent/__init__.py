@@ -18,4 +18,9 @@ from .agent_utils import (
     create_simple_chat
 )
 
-__version__ = "0.2.0"
+from .experiment_utils import (
+    run_parallel_dict_map,
+    run_parallel_dict_product,
+)
+
+__version__ = "0.2.1"
