@@ -23,4 +23,4 @@ from .experiment_utils import (
     run_parallel_dict_product,
 )
 
-__version__ = "0.2.1"
+__version__ = "0.2.3"
