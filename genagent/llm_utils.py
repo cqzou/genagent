@@ -48,10 +48,49 @@ def ant_prep(messages):
         # Convert additional system messages to user messages
         modified_messages.append({"role": "user", "content": msg["content"]})
     else:
-      # Keep non-system messages as they are
-      modified_messages.append(msg)
+      # Handle messages with complex content (text + images)
+      if isinstance(msg.get("content"), list):
+        # Convert OpenAI format to Anthropic format
+        ant_content = []
+        for item in msg["content"]:
+          if item["type"] == "text":
+            ant_content.append({"type": "text", "text": item["text"]})
+          elif item["type"] == "image_url":
+            url = item["image_url"]["url"]
+            # Convert to Anthropic format
+            ant_content.append({
+              "type": "image",
+              "source": {
+                "type": "url",
+                "url": url
+              }
+            })
+        modified_messages.append({"role": msg["role"], "content": ant_content})
+      else:
+        # Keep non-system messages as they are
+        modified_messages.append(msg)
   
   return modified_messages, system_content
+
+
+def create_image_message(text: str, image_url: str) -> dict:
+  """
+  Create a user message with text and image content.
+  
+  Args:
+    text: Text content of the message
+    image_url: URL of the image
+    
+  Returns:
+    Formatted message dict with image content for OpenAI/Anthropic APIs
+  """
+  return {
+    "role": "user",
+    "content": [
+      {"type": "text", "text": text},
+      {"type": "image_url", "image_url": {"url": image_url}}
+    ]
+  }
 
 
 def gen(messages: str | list[dict], provider=DEFAULT_PROVIDER, model=DEFAULT_MODEL, temperature=1, max_tokens=4000) -> str:
@@ -98,10 +137,6 @@ def gen(messages: str | list[dict], provider=DEFAULT_PROVIDER, model=DEFAULT_MOD
     raise e
 
 
-def simple_gen(prompt, provider='oai', model='o1-mini', temperature=1, max_tokens=4000) -> str:
-  return gen(prompt, provider, model, temperature, max_tokens)
-
-
 def fill_prompt(prompt, placeholders):
   for placeholder, value in placeholders.items():
     placeholder_tag = f"!<{placeholder.upper()}>!"
@@ -135,41 +170,59 @@ def modular_instructions(modules):
   
   If a module does not have a 'name', it will be added to the prompt only (used for 
   showing data or instructions that don't need to be extracted).
+  
+  If a module has an 'image' key, it will be collected for image processing.
   """
   prompt = ""
   step_count = 0
+  image_urls = []
+  
   for module in modules:
+    # Collect image URLs if present
+    if 'image' in module:
+      image_urls.append(module['image'])
+    
     if 'name' in module:
       step_count += 1
       prompt += f"Step {step_count} ({module['name']}): {module['instruction']}\n"
     else:
       prompt += f"{module['instruction']}\n"
+  
   prompt += "\n"
   prompt += make_output_format(modules)
-  return prompt
+  return prompt, image_urls
 
 
 def parse_json(response, target_keys=None):
-  json_start = response.find('{')
-  if json_start == -1:  # If no object found, check for array
-    json_start = response.find('[')
-  json_end = response.rfind('}') + 1
-  if json_start == -1:  # If still no start found
-    json_end = response.rfind(']') + 1
-  
-  cleaned_response = response[json_start:json_end].replace('\\"', '"')
-  try:
-    parsed = json.loads(cleaned_response)
-    if target_keys:
-      if isinstance(parsed, list):
-        # If it's a list, return it under the first target key
-        return {target_keys[0]: parsed}
-      parsed = {key: parsed.get(key, "") for key in target_keys}
-    return parsed
-
-  except json.JSONDecodeError:
-    # print(f"[GEN] JSONDecodeError: {response}")
-    return None
+  # Start from the end and go backwards
+  for i in range(len(response) - 1, -1, -1):
+    if response[i] in ("}", "]"):
+      stack = []
+      j = i
+      while j >= 0:
+        if response[j] in ("}", "]"):
+          stack.append(response[j])
+        elif response[j] == "{" and stack and stack[-1] == "}":
+          stack.pop()
+        elif response[j] == "[" and stack and stack[-1] == "]":
+          stack.pop()
+        if not stack:
+          candidate = response[j : i + 1]
+          # Clean escaped quotes
+          cleaned_candidate = candidate.replace('\\"', '"')
+          try:
+            parsed = json.loads(cleaned_candidate)
+            # Handle target_keys if provided
+            if target_keys:
+              if isinstance(parsed, list):
+                # If it's a list, return it under the first target key
+                return {target_keys[0]: parsed}
+              parsed = {key: parsed.get(key, "") for key in target_keys}
+            return parsed
+          except json.JSONDecodeError:
+            break
+        j -= 1
+  return None
 
 
 def mod_gen(
@@ -186,6 +239,10 @@ def mod_gen(
 
   Args:
     modules: List of instruction modules, see above for format
+      Each module can have:
+      - 'instruction': The text instruction (required)
+      - 'name': Output key name (optional)
+      - 'image': URL of an image to include (optional)
     provider: LLM provider ('oai' or 'ant')
     model: Model name to use
     placeholders: Dict of values to fill in prompt template
@@ -200,9 +257,27 @@ def mod_gen(
   """
 
   def attempt() -> tuple[Dict[str, Any], str, str]:
-    prompt = modular_instructions(modules)
+    prompt, image_urls = modular_instructions(modules)
     filled = fill_prompt(prompt, placeholders)
-    raw_response = simple_gen(filled, provider=provider, model=model, **kwargs)
+    
+    # If we have images, create a message with images
+    if image_urls:
+      # Build content array with text first
+      content = [{"type": "text", "text": filled}]
+      
+      # Add each image URL
+      for image_url in image_urls:
+        content.append({
+          "type": "image_url",
+          "image_url": {"url": image_url}
+        })
+      
+      # Create message with images
+      messages = [{"role": "user", "content": content}]
+      raw_response = gen(messages, provider=provider, model=model, **kwargs)
+    else:
+      # No images, use simple text generation
+      raw_response = gen(filled, provider=provider, model=model, **kwargs)
 
     if not raw_response:
       print("Error: response was empty")

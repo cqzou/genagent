@@ -1,6 +1,6 @@
 from .llm_utils import (
     gen,
-    simple_gen,
+    create_image_message,
     fill_prompt,
     make_output_format,
     modular_instructions,
