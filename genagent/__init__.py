@@ -23,4 +23,9 @@ from .experiment_utils import (
     run_parallel_dict_product,
 )
 
-__version__ = "0.2.3"
+from .async_utils import (
+    a_gen,
+    a_mod_gen
+)
+
+__version__ = "0.2.6"
