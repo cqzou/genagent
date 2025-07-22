@@ -246,35 +246,26 @@ def parse_json(response: str, target_keys: List[str] = None) -> Dict[str, Any] |
     Returns:
         Parsed dict or None if parsing fails
     """
-    # Start from the end and go backwards
-    for i in range(len(response) - 1, -1, -1):
-        if response[i] in ("}", "]"):
-            stack = []
-            j = i
-            while j >= 0:
-                if response[j] in ("}", "]"):
-                    stack.append(response[j])
-                elif response[j] == "{" and stack and stack[-1] == "}":
-                    stack.pop()
-                elif response[j] == "[" and stack and stack[-1] == "]":
-                    stack.pop()
-                if not stack:
-                    candidate = response[j : i + 1]
-                    # Clean escaped quotes
-                    cleaned_candidate = candidate.replace('\\"', '"')
-                    try:
-                        parsed = json.loads(cleaned_candidate)
-                        # Handle target_keys if provided
-                        if target_keys:
-                            if isinstance(parsed, list):
-                                # If it's a list, return it under the first target key
-                                return {target_keys[0]: parsed}
-                            parsed = {key: parsed.get(key, "") for key in target_keys}
-                        return parsed
-                    except json.JSONDecodeError:
-                        break
-                j -= 1
-    return None
+    json_start = response.find('{')
+    if json_start == -1:  # If no object found, check for array
+      json_start = response.find('[')
+    json_end = response.rfind('}') + 1
+    if json_start == -1:  # If still no start found
+      json_end = response.rfind(']') + 1
+  
+    cleaned_response = response[json_start:json_end].replace('\\"', '"')
+    try:
+      parsed = json.loads(cleaned_response)
+      if target_keys:
+        if isinstance(parsed, list):
+          # If it's a list, return it under the first target key
+          return {target_keys[0]: parsed}
+        parsed = {key: parsed.get(key, "") for key in target_keys}
+      return parsed
+
+    except json.JSONDecodeError:
+      # print(f"[GEN] JSONDecodeError: {response}")
+      return None
 
 
 def mod_gen(
