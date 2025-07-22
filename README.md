@@ -5,7 +5,7 @@ A Python package providing utilities for generative agent tasks, including:
 - Helper functions for prompt engineering and structured output.
 - Basic agent memory and chat session management.
 
-Version: 0.2.1 (See `genagent/__init__.py` for the current version)
+(See `genagent/__init__.py` for the current version)
 
 ## Installation
 
