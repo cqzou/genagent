@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genagent"
-version = "0.2.7"
+version = "0.3.0"
 authors = [
   { name="Carolyn Zou", email="cqz@cs.stanford.edu" },
 ]
 description = "Python utilities for generative agent tasks, including LLM interactions and agent memory."
 readme = "README.md"
-# license = "MIT" 
+# license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.8"
 classifiers = [
@@ -20,6 +20,8 @@ classifiers = [
 dependencies = [
     "openai>=1.0.0",
     "anthropic>=0.20.0",
+    "cerebras-cloud-sdk>=1.0.0",
+    "pydantic>=2.0.0",
     "numpy>=1.20.0",
     "python-dotenv>=0.20.0",
     "tqdm>=4.60.0",

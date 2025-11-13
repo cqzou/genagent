@@ -32,3 +32,4 @@ wheels/
 !.vscode/extensions.json
 .env
 /.vscode
+/.genagent_cache

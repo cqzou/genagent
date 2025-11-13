@@ -1,13 +1,18 @@
 from .llm_utils import (
     gen,
+    mod_gen,
+    ant_prep,
     create_image_message,
     fill_prompt,
     make_output_format,
     modular_instructions,
     parse_json,
-    mod_gen,
     get_embedding,
-    get_image
+    get_image,
+    get_openai_client,
+    get_async_openai_client,
+    ProviderType,
+    stable_object_hash,
 )
 
 from .agent_utils import (
@@ -28,4 +33,4 @@ from .async_utils import (
     a_mod_gen
 )
 
-__version__ = "0.2.6"
+__version__ = "0.3.0"
