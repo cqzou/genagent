@@ -27,3 +27,6 @@ dependencies = [
     "tqdm>=4.60.0",
     "frozendict>=2.0.0"
 ]
+
+[tool.setuptools.packages.find]
+exclude = ["test*", "tests*"]
