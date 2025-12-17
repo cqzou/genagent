@@ -272,6 +272,8 @@ class OpenAIProvider(LLMProvider):
 class AnthropicProvider(LLMProvider):
     """Anthropic provider implementation."""
 
+    STRUCTURED_OUTPUTS_BETA = "structured-outputs-2025-11-13"
+
     def __init__(self):
         self.client = Anthropic()
         self.client.api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -290,11 +292,6 @@ class AnthropicProvider(LLMProvider):
     ) -> Any:
         modified_messages, system_content = ant_prep(messages)
 
-        if response_format is not None:
-            modified_messages = self._add_json_format_instruction(
-                modified_messages, response_format
-            )
-
         api_kwargs = {
             "model": model,
             "temperature": temperature,
@@ -305,13 +302,20 @@ class AnthropicProvider(LLMProvider):
         if system_content is not None:
             api_kwargs["system"] = system_content
 
+        # Use structured outputs with Pydantic models
+        if response_format is not None:
+            response = self.client.beta.messages.parse(
+                betas=[self.STRUCTURED_OUTPUTS_BETA],
+                output_format=response_format,
+                **api_kwargs,
+            )
+            if return_response_obj:
+                return response
+            # parsed_output is the validated Pydantic model instance
+            return response.parsed_output
+
         response = self.client.messages.create(**api_kwargs)
-        text_response = response.content[0].text
-
-        if response_format is not None and not return_response_obj:
-            return self._parse_json_response(text_response, response_format)
-
-        return text_response
+        return response.content[0].text
 
 
 class CerebrasProvider(LLMProvider):
@@ -544,7 +548,10 @@ def gen(
     logging.info(f"[LLM] provider={kwargs.get('provider', DEFAULT_PROVIDER)}, model={kwargs.get('model', DEFAULT_MODEL)}, time={time.time() - start_time:.2f}s, prompt=\"{prompt_preview}...\"")
 
     if response_format is not None and not kwargs.get("return_response_obj"):
-        if hasattr(output, "dict"):
+        # Handle Pydantic models (v2 uses model_dump, v1 uses dict)
+        if hasattr(output, "model_dump"):
+            output = output.model_dump()
+        elif hasattr(output, "dict"):
             output = output.dict()
         elif isinstance(output, str):
             try:
@@ -659,8 +666,9 @@ def mod_gen(
     target_keys = None,
     max_attempts=3,
     debug=False,
+    response_model: Optional[type[BaseModel]] = None,
     **kwargs
-) -> Dict[str, Any] | tuple[Dict[str, Any], str, str]:
+) -> Dict[str, Any] | BaseModel | tuple[Dict[str, Any] | BaseModel, str, str]:
     """Generate structured output from modular instructions.
 
     Args:
@@ -669,36 +677,72 @@ def mod_gen(
         model: Model name to use
         placeholders: Dict of values to fill in prompt template
         target_keys: Keys to extract from response (defaults to module names)
-        max_attempts: Number of retries on failed parsing
+        max_attempts: Number of retries on failed parsing (only used without response_model)
         debug: If True, returns (parsed, raw_response, filled_prompt)
+        response_model: Optional Pydantic model for structured outputs. When provided,
+            uses native structured outputs API instead of text-based JSON parsing.
         **kwargs: Additional arguments passed to gen()
 
     Returns:
-        If debug=False: Dict of parsed responses
-        If debug=True: Tuple of (parsed_dict, raw_response, filled_prompt)
+        If debug=False: Dict of parsed responses or Pydantic model instance
+        If debug=True: Tuple of (parsed_dict/model, raw_response, filled_prompt)
     """
     for module in modules:
         if 'instruction' not in module:
             raise ValueError("Each module must have an 'instruction' field")
 
-    def attempt() -> tuple[Dict[str, Any], str, str]:
-        prompt, image_urls = modular_instructions(modules)
-        filled = fill_prompt(prompt, placeholders)
+    # Build prompt from modules (without JSON format instruction if using response_model)
+    prompt = ""
+    step_count = 0
+    image_urls = []
 
-        if image_urls:
-            content = [{"type": "text", "text": filled}]
-            for image_url in image_urls:
-                content.append({
-                    "type": "image_url",
-                    "image_url": {"url": image_url}
-                })
-            messages = [{"role": "user", "content": content}]
-            raw_response = gen(messages, provider=provider, model=model, **kwargs)
+    for module in modules:
+        if 'image' in module:
+            image_urls.append(module['image'])
+
+        if 'name' in module:
+            step_count += 1
+            prompt += f"Step {step_count} ({module['name']}): {module['instruction']}\n"
         else:
-            raw_response = gen(filled, provider=provider, model=model, **kwargs)
+            prompt += f"{module['instruction']}\n"
+
+    # Only add JSON format instruction if not using response_model
+    if response_model is None:
+        prompt += "\n" + make_output_format(modules)
+
+    filled = fill_prompt(prompt, placeholders)
+
+    # Build messages with optional images
+    if image_urls:
+        content = [{"type": "text", "text": filled}]
+        for image_url in image_urls:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": image_url}
+            })
+        messages = [{"role": "user", "content": content}]
+    else:
+        messages = [{"role": "user", "content": filled}]
+
+    # Use structured outputs with Pydantic model
+    if response_model is not None:
+        result = gen(
+            messages,
+            provider=provider,
+            model=model,
+            response_format=response_model,
+            **kwargs
+        )
+        if debug:
+            return (result, str(result), filled)
+        return result
+
+    # Legacy text-based JSON parsing with retries
+    def attempt() -> tuple[Dict[str, Any], str, str]:
+        raw_response = gen(messages, provider=provider, model=model, **kwargs)
 
         if not raw_response:
-            print("Error: response was empty")
+            logging.error("Error: response was empty")
             return ({}, "", filled)
 
         keys = ([module["name"].lower() for module in modules if "name" in module]
@@ -710,7 +754,7 @@ def mod_gen(
         parsed, raw_response, filled = attempt()
         if parsed and parsed != {}:
             break
-        print(f"[GEN] Retrying... ({i+1} / {max_attempts})")
+        logging.warning(f"[GEN] Retrying... ({i+1} / {max_attempts})")
 
     return (parsed, raw_response, filled) if debug else parsed
 
