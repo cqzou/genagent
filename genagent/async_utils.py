@@ -367,9 +367,6 @@ async def a_gen(
     else:
         response_format_hsh_tuple = tuple()
 
-    if not use_cache:
-        logging.warning(f"a_gen() not using the cache since {use_cache=}.")
-
     if kwargs.get("return_response_obj"):
         hsh_path = None
     else:
