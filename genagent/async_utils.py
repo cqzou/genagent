@@ -114,7 +114,18 @@ class AsyncOpenAIProvider(AsyncLLMProvider):
     """Async OpenAI provider implementation."""
 
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self._client = None
+
+    @property
+    def client(self):
+        """Lazy initialization so importing genagent doesn't require OPENAI_API_KEY."""
+        if self._client is None:
+            self._client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        return self._client
+
+    @client.setter
+    def client(self, value):
+        self._client = value
 
     async def generate(
         self,

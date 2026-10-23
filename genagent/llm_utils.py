@@ -203,7 +203,18 @@ class OpenAIProvider(LLMProvider):
     """OpenAI provider implementation."""
 
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self._client = None
+
+    @property
+    def client(self):
+        """Lazy initialization so importing genagent doesn't require OPENAI_API_KEY."""
+        if self._client is None:
+            self._client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        return self._client
+
+    @client.setter
+    def client(self, value):
+        self._client = value
 
     def generate(
         self,
@@ -642,17 +653,21 @@ def parse_json(response: str, target_keys: List[str] = None) -> Dict[str, Any] |
     if json_start == -1:
         json_end = response.rfind(']') + 1
 
-    cleaned_response = response[json_start:json_end].replace('\\"', '"')
-    try:
-        parsed = json.loads(cleaned_response)
+    candidate = response[json_start:json_end]
+    # Try the text as-is first so escaped quotes inside string values survive;
+    # fall back to unescaping for responses where the whole object is escaped.
+    for cleaned_response in (candidate, candidate.replace('\\"', '"')):
+        try:
+            parsed = json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            continue
         if target_keys:
             if isinstance(parsed, list):
                 return {target_keys[0]: parsed}
             parsed = {key: parsed.get(key, "") for key in target_keys}
         return parsed
 
-    except json.JSONDecodeError:
-        return None
+    return None
 
 
 def mod_gen(
